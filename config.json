@@ -1,0 +1,9 @@
+{
+  "sub_agents": {
+    "claude_sub_agent": {
+      "type": "cli",
+      "command": "claude --non-interactive -p",
+      "timeout": 300
+    }
+  }
+}
