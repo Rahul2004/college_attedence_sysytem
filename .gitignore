@@ -28,21 +28,3 @@ dist-ssr/
 # OS metadata
 .DS_Store
 Thumbs.db
-
-# graft's local graph cache
-/graft/
-
-# AI and MCP tool directories
-.claude/
-.playwright-mcp/
-.ignore
-.mcp.json
-config.json
-
-# Internal planning and architecture docs
-Architecture.md
-Design.md
-Memory.md
-PRD.md
-Phases.md
-Rules.md
