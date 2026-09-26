@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Menu } from 'lucide-react';
+import { Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import MateSidebar from './components/MateSidebar';
 import OrdersTableRoster from './components/OrdersTableRoster';
 import StudentDetailCard from './components/StudentDetailCard';
@@ -8,9 +8,25 @@ import StudentView from './components/StudentView';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import WarningDeficitEngine from './components/WarningDeficitEngine';
 import ExportReporting from './components/ExportReporting';
+import AdminDashboard from './components/AdminDashboard';
 import AuthScreen from './components/AuthScreen';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { INITIAL_STUDENTS, COURSE_METADATA } from './data/mockData';
+
+// Protected Admin Route wrapper that enforces admin privileges
+function AdminRoute({ role, children }) {
+  if (role !== 'admin') {
+    return (
+      <div className="rounded-2xl border border-rose-900/40 bg-rose-950/20 p-8 text-center text-slate-300">
+        <h2 className="text-base font-bold text-rose-400 mb-2">403 — Unauthorized Administrative Access</h2>
+        <p className="text-xs text-slate-400 max-w-md mx-auto">
+          You do not possess the required clearance level to access the Institutional Admin Suite.
+        </p>
+      </div>
+    );
+  }
+  return children;
+}
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -23,7 +39,8 @@ export default function App() {
   const [isCommitting, setIsCommitting] = useState(false);
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [activeDetailStudent, setActiveDetailStudent] = useState(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile drawer open/close
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState(true); // Desktop expanded (w-64) vs compact (w-18)
 
   // Supabase Auth Listener with Role Resolution
   useEffect(() => {
@@ -59,7 +76,7 @@ export default function App() {
 
         // 2. Strict Conditional Routing
         setRole(resolvedRole);
-        setActiveTab(resolvedRole === 'faculty' ? 'roster' : 'overview');
+        setActiveTab(resolvedRole === 'admin' ? 'admin' : resolvedRole === 'faculty' ? 'roster' : 'overview');
         setLoading(false);
       } else {
         setSession(null);
@@ -243,6 +260,8 @@ export default function App() {
         session={session}
         isSidebarOpen={isSidebarOpen}
         onMobileClose={() => setIsSidebarOpen(false)}
+        isExpanded={isSidebarExpanded}
+        onToggleExpand={() => setIsSidebarExpanded(prev => !prev)}
         onLogout={async () => {
           try {
             if (supabase) {
@@ -263,7 +282,7 @@ export default function App() {
       />
 
       {/* 2. Main Workspace */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto w-full">
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto w-full transition-all duration-300">
         <header className="h-14 bg-white border-b border-slate-200/80 px-4 sm:px-6 flex items-center justify-between shrink-0 sticky top-0 z-30">
           <div className="flex items-center gap-3 text-xs text-slate-500">
             {/* Mobile Hamburger Toggle Button (☰) */}
@@ -275,6 +294,22 @@ export default function App() {
             >
               <Menu className="w-5 h-5" />
             </button>
+
+            {/* Desktop Sidebar Collapse / Expand Toggle Button */}
+            <button
+              type="button"
+              onClick={() => setIsSidebarExpanded(prev => !prev)}
+              className="hidden md:flex p-2 -ml-1 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-colors items-center justify-center"
+              title={isSidebarExpanded ? "Collapse Sidebar (Compact mode)" : "Expand Sidebar (Full width)"}
+              aria-label="Toggle Sidebar Expansion"
+            >
+              {isSidebarExpanded ? (
+                <PanelLeftClose className="w-4.5 h-4.5 text-slate-600 hover:text-slate-900" />
+              ) : (
+                <PanelLeftOpen className="w-4.5 h-4.5 text-indigo-600 hover:text-indigo-700" />
+              )}
+            </button>
+
             <span className="font-semibold text-slate-800">{COURSE_METADATA.code}</span>
             <span className="hidden sm:inline">/</span>
             <span className="hidden sm:inline truncate max-w-[180px] md:max-w-none">{COURSE_METADATA.name}</span>
@@ -297,7 +332,7 @@ export default function App() {
         </header>
 
         {toast.message && (
-          <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 mt-4">
+          <div className="max-w-7xl mx-auto w-full px-3.5 sm:px-5 md:px-8 mt-3.5">
             <div className={`rounded-xl px-4 py-3 text-xs font-semibold shadow-xs border ${
               toast.type === 'success'
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-200/80'
@@ -308,8 +343,71 @@ export default function App() {
           </div>
         )}
 
-        <main className="p-4 sm:p-6 lg:p-8 flex-1 w-full max-w-7xl mx-auto">
-          {role === 'faculty' ? (
+        <main className="p-3.5 sm:p-5 md:p-8 flex-1 w-full max-w-7xl mx-auto">
+          {role === 'admin' ? (
+            /* ================= ADMIN ROLE VIEWS ================= */
+            <>
+              {activeTab === 'admin' && (
+                <AdminRoute role={role}>
+                  <AdminDashboard currentSession={session} />
+                </AdminRoute>
+              )}
+
+              {activeTab === 'roster' && (
+                <div className="flex flex-col lg:flex-row items-start gap-6 w-full">
+                  <div className="flex-1 min-w-0 relative w-full">
+                    <OrdersTableRoster
+                      students={students}
+                      onToggleStatus={handleToggleStatus}
+                      onMarkAll={handleMarkAll}
+                      selectedDate={selectedDate}
+                      onDateChange={setSelectedDate}
+                      onCommit={handleCommit}
+                      isCommitting={isCommitting}
+                      hasPendingChanges={pendingChanges.size > 0}
+                      onSelectStudentDetail={setActiveDetailStudent}
+                      activeDetailStudent={activeDetailStudent}
+                    />
+
+                    {activeDetailStudent && (
+                      <div className="fixed top-24 right-8 z-40 w-80 hidden 2xl:block">
+                        <StudentDetailCard
+                          student={activeDetailStudent}
+                          onClose={() => setActiveDetailStudent(null)}
+                          onToggleStatus={handleToggleStatus}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <RightMetricsPanel
+                    students={students}
+                    course={COURSE_METADATA}
+                    onSelectDefaulterFilter={() => setActiveTab('warnings')}
+                  />
+                </div>
+              )}
+
+              {activeTab === 'analytics' && (
+                <div className="w-full">
+                  <AnalyticsDashboard />
+                </div>
+              )}
+
+              {activeTab === 'warnings' && (
+                <div className="w-full">
+                  <WarningDeficitEngine students={students} />
+                </div>
+              )}
+
+              {activeTab === 'reports' && (
+                <div className="w-full">
+                  <ExportReporting students={students} course={COURSE_METADATA} />
+                </div>
+              )}
+            </>
+          ) : role === 'faculty' ? (
+            /* ================= FACULTY ROLE VIEWS ================= */
             <>
               {activeTab === 'roster' && (
                 <div className="flex flex-col lg:flex-row items-start gap-6 w-full">
@@ -365,6 +463,7 @@ export default function App() {
               )}
             </>
           ) : (
+            /* ================= STUDENT ROLE VIEWS ================= */
             <div className="w-full">
               <StudentView
                 student={students[0] || INITIAL_STUDENTS[0]}

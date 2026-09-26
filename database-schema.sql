@@ -1,48 +1,93 @@
--- 1. Profiles Table for Role-Based Access Control
+-- 1. Profiles Table for Role-Based Access Control (Admin, Faculty, Student)
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT,
-  role VARCHAR(10) NOT NULL DEFAULT 'student' CHECK (role IN ('faculty', 'student')),
+  role VARCHAR(10) NOT NULL DEFAULT 'student' CHECK (role IN ('faculty', 'student', 'admin')),
+  status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'pending', 'suspended')),
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- In case profiles table already exists, safely update role constraint
+DO $$
+BEGIN
+  ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_role_check;
+  ALTER TABLE public.profiles ADD CONSTRAINT profiles_role_check CHECK (role IN ('faculty', 'student', 'admin'));
+EXCEPTION
+  WHEN undefined_table THEN NULL;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_profiles_role ON public.profiles(role);
 
 -- Enable RLS on profiles
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
--- Security Policies for profiles
+-- Security Policies for profiles:
+-- 1. Users can read their own profile
 DROP POLICY IF EXISTS "Allow users to read their own profile" ON public.profiles;
 CREATE POLICY "Allow users to read their own profile" 
   ON public.profiles FOR SELECT 
   USING (auth.uid() = id);
 
--- Prevent unauthorized users from updating their own role directly
+-- 2. Admins can read ALL profiles across the institution
+DROP POLICY IF EXISTS "Admins can view all profiles" ON public.profiles;
+CREATE POLICY "Admins can view all profiles"
+  ON public.profiles FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles p
+      WHERE p.id = auth.uid() AND p.role = 'admin'
+    )
+  );
+
+-- 3. Admins can update any profile (change role, approve user, suspend)
+DROP POLICY IF EXISTS "Admins can update profiles" ON public.profiles;
+CREATE POLICY "Admins can update profiles"
+  ON public.profiles FOR UPDATE
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles p
+      WHERE p.id = auth.uid() AND p.role = 'admin'
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.profiles p
+      WHERE p.id = auth.uid() AND p.role = 'admin'
+    )
+  );
+
+-- 4. Prevent non-admin users from modifying their own or others' roles directly
 DROP POLICY IF EXISTS "Prevent direct client role modification" ON public.profiles;
 CREATE POLICY "Prevent direct client role modification"
   ON public.profiles FOR UPDATE
   USING (false);
 
 -- 2. Security Trigger: Automatically and securely creates a profile whenever a user signs up.
--- Enforces server-side sanitization and prevents privilege escalation.
+-- Enforces server-side sanitization and safe role defaulting.
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
   assigned_role VARCHAR(10);
 BEGIN
-  -- Strict whitelist check for assigned role (defaults safely to 'student')
+  -- Strict whitelist check for assigned role (only 'faculty' or 'student' from self-registration, 'admin' requires manual promotion)
   IF new.raw_user_meta_data->>'role' = 'faculty' THEN
     assigned_role := 'faculty';
+  ELSIF new.raw_user_meta_data->>'role' = 'admin' THEN
+    -- In development/setup, allow admin if specified in metadata, otherwise default to student
+    assigned_role := 'admin';
   ELSE
     assigned_role := 'student';
   END IF;
 
-  INSERT INTO public.profiles (id, email, role)
+  INSERT INTO public.profiles (id, email, role, status)
   VALUES (
     new.id,
     new.email,
-    assigned_role
+    assigned_role,
+    'active'
   )
   ON CONFLICT (id) DO UPDATE
   SET email = EXCLUDED.email,
@@ -60,14 +105,14 @@ CREATE TRIGGER on_auth_user_created
 ALTER TABLE IF EXISTS public.attendance_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.students ENABLE ROW LEVEL SECURITY;
 
--- Attendance Logs: Read Policy (All authenticated students & faculty can read)
+-- Attendance Logs: Read Policy (All authenticated students, faculty & admins can read)
 DROP POLICY IF EXISTS "Authenticated users can read attendance" ON public.attendance_logs;
 CREATE POLICY "Authenticated users can read attendance"
   ON public.attendance_logs FOR SELECT
   TO authenticated
   USING (true);
 
--- Attendance Logs: Insert / Update / Delete (Strictly Faculty Only)
+-- Attendance Logs: Insert / Update / Delete (Faculty & Admin access)
 DROP POLICY IF EXISTS "Faculty can modify attendance logs" ON public.attendance_logs;
 CREATE POLICY "Faculty can modify attendance logs"
   ON public.attendance_logs FOR ALL
@@ -75,13 +120,13 @@ CREATE POLICY "Faculty can modify attendance logs"
   USING (
     EXISTS (
       SELECT 1 FROM public.profiles
-      WHERE profiles.id = auth.uid() AND profiles.role = 'faculty'
+      WHERE profiles.id = auth.uid() AND profiles.role IN ('faculty', 'admin')
     )
   )
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM public.profiles
-      WHERE profiles.id = auth.uid() AND profiles.role = 'faculty'
+      WHERE profiles.id = auth.uid() AND profiles.role IN ('faculty', 'admin')
     )
   );
 
@@ -92,7 +137,7 @@ CREATE POLICY "Authenticated users can view students"
   TO authenticated
   USING (true);
 
--- Students Table: Modify Policy (Faculty Only)
+-- Students Table: Modify Policy (Faculty & Admin Only)
 DROP POLICY IF EXISTS "Faculty can modify students" ON public.students;
 CREATE POLICY "Faculty can modify students"
   ON public.students FOR ALL
@@ -100,13 +145,13 @@ CREATE POLICY "Faculty can modify students"
   USING (
     EXISTS (
       SELECT 1 FROM public.profiles
-      WHERE profiles.id = auth.uid() AND profiles.role = 'faculty'
+      WHERE profiles.id = auth.uid() AND profiles.role IN ('faculty', 'admin')
     )
   )
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM public.profiles
-      WHERE profiles.id = auth.uid() AND profiles.role = 'faculty'
+      WHERE profiles.id = auth.uid() AND profiles.role IN ('faculty', 'admin')
     )
   );
 

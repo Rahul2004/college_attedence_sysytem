@@ -95,7 +95,7 @@ export default function OrdersTableRoster({
   return (
     <div className="relative">
       {/* Top Header Row of the Table View: Title + Actions (like "Orders" + Import/Export) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-6">
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
@@ -157,14 +157,14 @@ export default function OrdersTableRoster({
       </div>
 
       {/* Filter Row Pills: Type (Status) / Search / Filter Pills */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-4">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 mb-5">
         <div className="flex items-center gap-2 flex-wrap">
           {/* Filter Pills with Badge Count */}
-          <div className="flex items-center gap-1 p-1 bg-slate-100/80 rounded-xl border border-slate-200/60 text-xs font-semibold">
+          <div className="flex items-center gap-1 p-1 bg-slate-100/80 rounded-xl border border-slate-200/60 text-xs font-semibold transition-all duration-200">
             <button
               type="button"
               onClick={() => setFilterType('ALL')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
+              className={`px-3 py-1.5 rounded-lg transition-all duration-200 hover:scale-[1.01] ${
                 filterType === 'ALL'
                   ? 'bg-white text-slate-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
@@ -176,7 +176,7 @@ export default function OrdersTableRoster({
             <button
               type="button"
               onClick={() => setFilterType('WARNING')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
+              className={`px-3 py-1.5 rounded-lg transition-all duration-200 hover:scale-[1.01] ${
                 filterType === 'WARNING'
                   ? 'bg-white text-rose-700 shadow-xs font-bold'
                   : 'text-slate-600 hover:text-rose-600'
@@ -188,7 +188,7 @@ export default function OrdersTableRoster({
             <button
               type="button"
               onClick={() => setFilterType('ABSENT')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
+              className={`px-3 py-1.5 rounded-lg transition-all duration-200 hover:scale-[1.01] ${
                 filterType === 'ABSENT'
                   ? 'bg-white text-slate-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
@@ -200,7 +200,7 @@ export default function OrdersTableRoster({
             <button
               type="button"
               onClick={() => setFilterType('PRESENT')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
+              className={`px-3 py-1.5 rounded-lg transition-all duration-200 hover:scale-[1.01] ${
                 filterType === 'PRESENT'
                   ? 'bg-white text-emerald-700 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
@@ -226,10 +226,10 @@ export default function OrdersTableRoster({
 
       {/* Main Table Card */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
           <table className="w-full border-collapse text-left text-xs">
             <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-500 font-semibold tracking-wide select-none">
+              <tr className="sticky top-0 z-10 border-b border-slate-100 bg-white/95 backdrop-blur-md text-slate-700 font-semibold tracking-wide select-none transition-all duration-200">
                 {/* Select All Checkbox */}
                 <th className="py-3.5 px-4 w-12 text-center">
                   <input
@@ -306,12 +306,12 @@ export default function OrdersTableRoster({
                     <tr
                       key={student.id}
                       onClick={() => onSelectStudentDetail && onSelectStudentDetail(student)}
-                      className={`cursor-pointer transition-colors group ${
+                      className={`cursor-pointer transition-all duration-150 group hover:bg-slate-50/70 hover:shadow-sm ${
                         isDetailActive
-                          ? 'bg-slate-100/70 font-medium'
+                          ? 'bg-slate-100/70 font-medium shadow-sm'
                           : isChecked
                           ? 'bg-slate-50'
-                          : 'hover:bg-slate-50/70'
+                          : ''
                       }`}
                     >
                       {/* Checkbox */}
